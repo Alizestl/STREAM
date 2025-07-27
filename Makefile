@@ -1,5 +1,6 @@
 CC = gcc
-CFLAGS = -O2 -fopenmp
+# CFLAGS = -O2 -fopenmp -DN=2000000 -DNTIMES=10
+CFLAGS = -O2 -fopenmp -DN=2000000 -DNTIMES=10
 
 FC = gfortran
 FFLAGS = -O2 -fopenmp
