@@ -305,8 +305,11 @@ int main() {
     printf("Each test below will take on the order"
 	" of %d microseconds.\n", (int) t  );
     printf("   (= %d clock ticks)\n", (int) (t/quantum) );
+
+	printf(HLINE);
+	
     printf("Increase the size of the arrays if this shows that\n");
-    printf("you are not getting at least 20 clock ticks per test.\n");
+    printf("you are **not** getting at least 20 clock ticks per test.\n");
 
     printf(HLINE);
 
@@ -459,7 +462,7 @@ void checkSTREAMresults ()
 	STREAM_TYPE aSumErr,bSumErr,cSumErr;
 	STREAM_TYPE aAvgErr,bAvgErr,cAvgErr;
 	double epsilon;
-	ssize_t	j;
+	ptrdiff_t	j;
 	int	k,ierr,err;
 
     /* reproduce initialization */
