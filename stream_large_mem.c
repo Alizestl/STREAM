@@ -44,6 +44,7 @@
 # include <math.h>
 # include <float.h>
 # include <limits.h>
+# include <stdlib.h> 
 
 #include <stddef.h>    // for ptrdiff_t
 #include <windows.h>   // for high-resolution timer
@@ -184,9 +185,11 @@
 #define STREAM_TYPE double
 #endif
 
-static STREAM_TYPE	a[STREAM_ARRAY_SIZE+OFFSET],
-					b[STREAM_ARRAY_SIZE+OFFSET],
-					c[STREAM_ARRAY_SIZE+OFFSET];
+// static STREAM_TYPE	a[STREAM_ARRAY_SIZE+OFFSET],
+// 					b[STREAM_ARRAY_SIZE+OFFSET],
+// 					c[STREAM_ARRAY_SIZE+OFFSET];
+
+static STREAM_TYPE  *a, *b, *c;
 
 static double	avgtime[4] = {0}, 
 				maxtime[4] = {0},
@@ -227,6 +230,19 @@ int main() {
 	ptrdiff_t 	j;
     STREAM_TYPE	scalar;
     double		t, times[4][NTIMES];
+
+    /* --- 动态分配内存 --- */
+	a = (STREAM_TYPE*) malloc((STREAM_ARRAY_SIZE+OFFSET) * sizeof(STREAM_TYPE));
+    b = (STREAM_TYPE*) malloc((STREAM_ARRAY_SIZE+OFFSET) * sizeof(STREAM_TYPE));
+    c = (STREAM_TYPE*) malloc((STREAM_ARRAY_SIZE+OFFSET) * sizeof(STREAM_TYPE));
+
+	if (!a || !b || !c) {
+        printf("ERROR: Memory allocation failed!\n");
+        printf("Requested memory per array: %.1f MB\n", 
+               (double)(STREAM_ARRAY_SIZE+OFFSET) * sizeof(STREAM_TYPE) / (1024.0*1024.0));
+        exit(1);
+    }
+    printf("Memory successfully allocated for arrays.\n");
 
     /* --- SETUP --- determine precision and check timing --- */
 
@@ -390,6 +406,12 @@ int main() {
     /* --- Check Results --- */
     checkSTREAMresults();
     printf(HLINE);
+	
+    /* --- 释放动态分配的内存 --- */
+    free(a);
+    free(b);
+    free(c);
+    printf("Memory successfully freed.\n");
 
     return 0;
 }
