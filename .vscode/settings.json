@@ -1,6 +1,9 @@
 {
     "files.associations": {
         "float.h": "c",
-        "windows.h": "c"
+        "windows.h": "c",
+        "math.h": "c",
+        "limits.h": "c",
+        "stddef.h": "c"
     }
 }
