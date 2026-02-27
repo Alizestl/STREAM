@@ -41,11 +41,20 @@
 /*  5. Absolutely no warranty is expressed or implied.                   */
 /*-----------------------------------------------------------------------*/
 # include <stdio.h>
-# include <unistd.h>
 # include <math.h>
 # include <float.h>
 # include <limits.h>
-# include <sys/time.h>
+# include <stdlib.h> 
+
+#include <stddef.h>    // for ptrdiff_t
+#include <windows.h>   // for high-resolution timer
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+// unix 
+// # include <unistd.h>
+// # include <sys/time.h>
 
 /*-----------------------------------------------------------------------
  * INSTRUCTIONS:
@@ -176,17 +185,23 @@
 #define STREAM_TYPE double
 #endif
 
-static STREAM_TYPE	a[STREAM_ARRAY_SIZE+OFFSET],
-			b[STREAM_ARRAY_SIZE+OFFSET],
-			c[STREAM_ARRAY_SIZE+OFFSET];
+// static STREAM_TYPE	a[STREAM_ARRAY_SIZE+OFFSET],
+// 					b[STREAM_ARRAY_SIZE+OFFSET],
+// 					c[STREAM_ARRAY_SIZE+OFFSET];
 
-static double	avgtime[4] = {0}, maxtime[4] = {0},
-		mintime[4] = {FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX};
+static STREAM_TYPE  *a, *b, *c;
 
-static char	*label[4] = {"Copy:      ", "Scale:     ",
-    "Add:       ", "Triad:     "};
+static double	avgtime[4] = {0}, 
+				maxtime[4] = {0},
+				mintime[4] = {FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX};
 
-static double	bytes[4] = {
+static char *label[4] = {"Copy:      ", 
+						 "Scale:     ", 
+						 "Add:       ", 
+						 "Triad:     "
+						};
+
+static double bytes[4] = {
     2 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
     2 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
     3 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
@@ -195,24 +210,39 @@ static double	bytes[4] = {
 
 extern double mysecond();
 extern void checkSTREAMresults();
+
 #ifdef TUNED
 extern void tuned_STREAM_Copy();
 extern void tuned_STREAM_Scale(STREAM_TYPE scalar);
 extern void tuned_STREAM_Add();
 extern void tuned_STREAM_Triad(STREAM_TYPE scalar);
 #endif
+
 #ifdef _OPENMP
 extern int omp_get_num_threads();
 #endif
-int
-main()
-    {
+
+int main() {
     int			quantum, checktick();
     int			BytesPerWord;
     int			k;
-    ssize_t		j;
-    STREAM_TYPE		scalar;
+    // ssize_t	j;
+	ptrdiff_t 	j;
+    STREAM_TYPE	scalar;
     double		t, times[4][NTIMES];
+
+    /* --- 动态分配内存 --- */
+	a = (STREAM_TYPE*) malloc((STREAM_ARRAY_SIZE+OFFSET) * sizeof(STREAM_TYPE));
+    b = (STREAM_TYPE*) malloc((STREAM_ARRAY_SIZE+OFFSET) * sizeof(STREAM_TYPE));
+    c = (STREAM_TYPE*) malloc((STREAM_ARRAY_SIZE+OFFSET) * sizeof(STREAM_TYPE));
+
+	if (!a || !b || !c) {
+        printf("ERROR: Memory allocation failed!\n");
+        printf("Requested memory per array: %.1f MB\n", 
+               (double)(STREAM_ARRAY_SIZE+OFFSET) * sizeof(STREAM_TYPE) / (1024.0*1024.0));
+        exit(1);
+    }
+    printf("Memory successfully allocated for arrays.\n");
 
     /* --- SETUP --- determine precision and check timing --- */
 
@@ -220,10 +250,9 @@ main()
     printf("STREAM version $Revision: 5.10 $\n");
     printf(HLINE);
     BytesPerWord = sizeof(STREAM_TYPE);
-    printf("This system uses %d bytes per array element.\n",
-	BytesPerWord);
-
+    printf("This system uses %d bytes per array element.\n", BytesPerWord);
     printf(HLINE);
+	
 #ifdef N
     printf("*****  WARNING: ******\n");
     printf("      It appears that you set the preprocessor variable N when compiling this code.\n");
@@ -236,6 +265,7 @@ main()
     printf("Memory per array = %.1f MiB (= %.1f GiB).\n", 
 	BytesPerWord * ( (double) STREAM_ARRAY_SIZE / 1024.0/1024.0),
 	BytesPerWord * ( (double) STREAM_ARRAY_SIZE / 1024.0/1024.0/1024.0));
+	
     printf("Total memory required = %.1f MiB (= %.1f GiB).\n",
 	(3.0 * BytesPerWord) * ( (double) STREAM_ARRAY_SIZE / 1024.0/1024.),
 	(3.0 * BytesPerWord) * ( (double) STREAM_ARRAY_SIZE / 1024.0/1024./1024.));
@@ -264,7 +294,7 @@ main()
 #endif
 
     /* Get initial value for system clock. */
-#pragma omp parallel for
+	#pragma omp parallel for
     for (j=0; j<STREAM_ARRAY_SIZE; j++) {
 	    a[j] = 1.0;
 	    b[j] = 2.0;
@@ -291,8 +321,11 @@ main()
     printf("Each test below will take on the order"
 	" of %d microseconds.\n", (int) t  );
     printf("   (= %d clock ticks)\n", (int) (t/quantum) );
+
+	printf(HLINE);
+	
     printf("Increase the size of the arrays if this shows that\n");
-    printf("you are not getting at least 20 clock ticks per test.\n");
+    printf("you are **not** getting at least 20 clock ticks per test.\n");
 
     printf(HLINE);
 
@@ -349,47 +382,50 @@ main()
 
     /*	--- SUMMARY --- */
 
-    for (k=1; k<NTIMES; k++) /* note -- skip first iteration */
-	{
-	for (j=0; j<4; j++)
-	    {
-	    avgtime[j] = avgtime[j] + times[j][k];
-	    mintime[j] = MIN(mintime[j], times[j][k]);
-	    maxtime[j] = MAX(maxtime[j], times[j][k]);
-	    }
+    for (k=1; k<NTIMES; k++) /* note -- skip first iteration */{
+		for (j=0; j<4; j++) {
+			avgtime[j] = avgtime[j] + times[j][k];
+			mintime[j] = MIN(mintime[j], times[j][k]);
+			maxtime[j] = MAX(maxtime[j], times[j][k]);
+		}
 	}
     
     printf("Function    Best Rate MB/s  Avg time     Min time     Max time\n");
     for (j=0; j<4; j++) {
 		avgtime[j] = avgtime[j]/(double)(NTIMES-1);
 
-		printf("%s%12.1f  %11.6f  %11.6f  %11.6f\n", label[j],
-	       1.0E-06 * bytes[j]/mintime[j],
-	       avgtime[j],
-	       mintime[j],
-	       maxtime[j]);
+		printf("%s%12.1f  %11.6f  %11.6f  %11.6f\n", 
+			label[j],
+	        1.0E-06 * bytes[j]/mintime[j],
+	        avgtime[j],
+	        mintime[j],
+	        maxtime[j]);
     }
     printf(HLINE);
 
     /* --- Check Results --- */
     checkSTREAMresults();
     printf(HLINE);
+	
+    /* --- 释放动态分配的内存 --- */
+    free(a);
+    free(b);
+    free(c);
+    printf("Memory successfully freed.\n");
 
     return 0;
 }
 
 # define	M	20
 
-int
-checktick()
-    {
+int checktick() {
     int		i, minDelta, Delta;
     double	t1, t2, timesfound[M];
 
 /*  Collect a sequence of M unique time values from the system. */
 
     for (i = 0; i < M; i++) {
-	t1 = mysecond();
+	t1 = mysecond(); 
 	while( ((t2=mysecond()) - t1) < 1.0E-6 )
 	    ;
 	timesfound[i] = t1 = t2;
@@ -403,40 +439,52 @@ checktick()
 
     minDelta = 1000000;
     for (i = 1; i < M; i++) {
-	Delta = (int)( 1.0E6 * (timesfound[i]-timesfound[i-1]));
-	minDelta = MIN(minDelta, MAX(Delta,0));
+		Delta = (int)( 1.0E6 * (timesfound[i]-timesfound[i-1]));
+		minDelta = MIN(minDelta, MAX(Delta,0));
 	}
 
    return(minDelta);
-    }
+}
 
 
 
 /* A gettimeofday routine to give access to the wall
    clock timer on most UNIX-like systems.  */
 
-#include <sys/time.h>
+// // #include <sys/time.h>
+// double mysecond()
+// {
+//         struct timeval tp;
+//         struct timezone tzp;
+//         int i;
+
+//         i = gettimeofday(&tp,&tzp);
+//         return ( (double) tp.tv_sec + (double) tp.tv_usec * 1.e-6 );
+// }
 
 double mysecond()
 {
-        struct timeval tp;
-        struct timezone tzp;
-        int i;
-
-        i = gettimeofday(&tp,&tzp);
-        return ( (double) tp.tv_sec + (double) tp.tv_usec * 1.e-6 );
+    static LARGE_INTEGER freq = {0};
+    LARGE_INTEGER now;
+    if (freq.QuadPart == 0) {
+        QueryPerformanceFrequency(&freq);
+    }
+    QueryPerformanceCounter(&now);
+    return (double)now.QuadPart / (double)freq.QuadPart;
 }
+
 
 #ifndef abs
 #define abs(a) ((a) >= 0 ? (a) : -(a))
 #endif
+
 void checkSTREAMresults ()
 {
 	STREAM_TYPE aj,bj,cj,scalar;
 	STREAM_TYPE aSumErr,bSumErr,cSumErr;
 	STREAM_TYPE aAvgErr,bAvgErr,cAvgErr;
 	double epsilon;
-	ssize_t	j;
+	ptrdiff_t	j;
 	int	k,ierr,err;
 
     /* reproduce initialization */
